@@ -1,4 +1,4 @@
-import React, { useState,useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import LanguageChart from "./components/LanguageChart";
 import ActivityChart from "./components/ActivityChart";
 import StarsForksChart from "./components/StarsForksChart";
@@ -17,19 +17,56 @@ function Loader() {
   );
 }
 
-
+// Generic JSON helper (short, readable error messages)
 async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Request failed: ${res.status} ${res.statusText} ${text}`);
+    let msg = `Request failed: ${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body && body.message) {
+        msg += ` - ${body.message}`;
+      }
+    } catch {
+      // ignore body parse errors
+    }
+    throw new Error(msg);
   }
   return res.json();
 }
 
 // 1) org metadata (true total repos, followers, etc.)
+//    Special handling for 404 so we can show a nice error.
 async function fetchOrgMeta(org) {
-  return fetchJson(`${GITHUB_BASE}/orgs/${org}`);
+  const res = await fetch(`${GITHUB_BASE}/orgs/${org}`);
+  if (res.status === 404) {
+    // org doesn't exist
+    let msg = `Organization "${org}" not found.`;
+    try {
+      const body = await res.json();
+      if (body && body.message && body.message !== "Not Found") {
+        msg = body.message;
+      }
+    } catch {
+      // ignore
+    }
+    const err = new Error(msg);
+    err.code = 404;
+    throw err;
+  }
+  if (!res.ok) {
+    let msg = `GitHub API error: ${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body && body.message) {
+        msg += ` - ${body.message}`;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(msg);
+  }
+  return res.json();
 }
 
 // 2) paginated repo list
@@ -112,17 +149,21 @@ export default function App() {
   const [error, setError] = useState("");
 
   async function loadOrgData(org) {
-    if (!org) return;
+    const trimmed = org.trim();
+    if (!trimmed) return;
+
     setLoading(true);
     setError("");
-    try {
-      // kick off meta + rate in parallel
-      const metaPromise = fetchOrgMeta(org);
-      const ratePromise = fetchRateLimit();
-      const allRepos = await fetchAllRepos(org);
 
-      const meta = await metaPromise;
-      const rate = await ratePromise;
+    try {
+      // 1) ensure org exists (gives us clean 404 message)
+      const meta = await fetchOrgMeta(trimmed);
+
+      // 2) repos + rate limit in parallel
+      const [allRepos, rate] = await Promise.all([
+        fetchAllRepos(trimmed),
+        fetchRateLimit(),
+      ]);
 
       setOrgMeta(meta);
       setRepos(allRepos);
@@ -132,7 +173,11 @@ export default function App() {
       setRateInfo(rate);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Failed to load data");
+      const message =
+        (err && err.message) || "Failed to load data from GitHub.";
+      setError(message);
+
+      // clear data so cards/charts show zeros / nothing
       setOrgMeta(null);
       setRepos([]);
       setLanguageStats([]);
@@ -144,8 +189,10 @@ export default function App() {
     }
   }
 
-  // load initial org when app starts (optional: wrap in useEffect)
-  useEffect(() => { loadOrgData("philips-software"); }, []);
+  // load initial org when app starts
+  useEffect(() => {
+    loadOrgData("philips-software");
+  }, []);
 
   // filtered repos for table
   const filteredRepos = repos.filter((r) => {
@@ -172,30 +219,29 @@ export default function App() {
       {loading && <Loader />}
 
       {/* HEADER */}
-     <header className="header">
-  <div className="logo-circle">
-    {orgMeta?.avatar_url ? (
-      <img
-        src={orgMeta.avatar_url}
-        alt={orgMeta.name || orgMeta.login}
-        className="logo-avatar"
-      />
-    ) : (
-      "G"
-    )}
-  </div>
-  <div>
-    <div className="title">
-      {orgMeta?.name || orgMeta?.login || "GitHub Org Analytics"}
-    </div>
-    {orgMeta && (
-      <div className="subtitle">
-        {orgMeta.description || "GitHub Org Analytics"}
-      </div>
-    )}
-  </div>
-</header>
-
+      <header className="header">
+        <div className="logo-circle">
+          {orgMeta?.avatar_url ? (
+            <img
+              src={orgMeta.avatar_url}
+              alt={orgMeta.name || orgMeta.login}
+              className="logo-avatar"
+            />
+          ) : (
+            "G"
+          )}
+        </div>
+        <div>
+          <div className="title">
+            {orgMeta?.name || orgMeta?.login || "GitHub Org Analytics"}
+          </div>
+          {orgMeta && (
+            <div className="subtitle">
+              {orgMeta.description || "GitHub Org Analytics"}
+            </div>
+          )}
+        </div>
+      </header>
 
       {/* ORG SEARCH */}
       <div className="org-search-row">
@@ -207,14 +253,14 @@ export default function App() {
         />
         <button
           className="search-button"
-          onClick={() => loadOrgData(orgInput.trim())}
+          onClick={() => loadOrgData(orgInput)}
           disabled={loading}
         >
           {loading ? "Loading..." : "Search"}
         </button>
       </div>
 
-      {orgMeta && (
+      {orgMeta && !error && (
         <div className="org-label">
           Showing data for: <span className="org-name">{orgMeta.login}</span>
         </div>
@@ -243,10 +289,7 @@ export default function App() {
         <div className="card blue">
           <div className="card-label">Stars Total</div>
           <div className="card-value">
-            {repos.reduce(
-              (sum, r) => sum + (r.stargazers_count || 0),
-              0
-            )}
+            {repos.reduce((sum, r) => sum + (r.stargazers_count || 0), 0)}
           </div>
         </div>
       </div>
@@ -273,51 +316,55 @@ export default function App() {
         </div>
       </div>
 
-      {/* FILTERS ROW */}
-      <div className="filters-row">
-        <input
-          className="search-repos-input"
-          placeholder="Search repositories"
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-        />
-        <select
-          className="dropdown"
-          value={languageFilter}
-          onChange={(e) => setLanguageFilter(e.target.value)}
-        >
-          <option value="All">All languages</option>
-          {languageStats.map((l) => (
-            <option key={l.language} value={l.language}>
-              {l.language}
-            </option>
-          ))}
-        </select>
-        <select
-          className="dropdown"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="All">Status: All</option>
-          <option value="Active">Active only</option>
-          <option value="Archived">Archived only</option>
-        </select>
-      </div>
+      {/* Only show charts, filters, and table if there is no error */}
+      {!error && (
+        <>
+          {/* CHARTS */}
+          <div className="charts-row">
+            <LanguageChart data={languageStats} />
+            <ActivityChart data={activity} />
+            <StarsForksChart data={starsForks} />
+          </div>
 
-      {/* CHARTS */}
-      <div className="charts-row">
-        <LanguageChart data={languageStats} />
-        <ActivityChart data={activity} />
-        <StarsForksChart data={starsForks} />
-      </div>
+          {/* FILTERS ROW */}
+          <div className="filters-row">
+            <input
+              className="search-repos-input"
+              placeholder="Search repositories"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+            <select
+              className="dropdown"
+              value={languageFilter}
+              onChange={(e) => setLanguageFilter(e.target.value)}
+            >
+              <option value="All">All languages</option>
+              {languageStats.map((l) => (
+                <option key={l.language} value={l.language}>
+                  {l.language}
+                </option>
+              ))}
+            </select>
+            <select
+              className="dropdown"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All">Status: All</option>
+              <option value="Active">Active only</option>
+              <option value="Archived">Archived only</option>
+            </select>
+          </div>
 
-      {/* TABLE */}
-      <RepoTable
-          repos={filteredRepos}
-          loadedCount={repos.length}
-          totalCount={orgMeta?.public_repos}
-        />
-
+          {/* TABLE */}
+          <RepoTable
+            repos={filteredRepos}
+            loadedCount={repos.length}
+            totalCount={orgMeta?.public_repos}
+          />
+        </>
+      )}
     </div>
   );
 }
