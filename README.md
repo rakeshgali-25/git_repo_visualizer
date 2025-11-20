@@ -1,16 +1,145 @@
-# React + Vite
+GitHub Organization Analytics Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A visually polished React dashboard that analyzes any GitHub organization using public GitHub APIs.
+Enter an org name → fetch all its repositories → visualize insights with modern charts & analytics.
 
-Currently, two official plugins are available:
+This project focuses on:
+✔ Performance
+✔ Beautiful UI
+✔ Clean code structure
+✔ Accurate analytics (handling GitHub pagination limits)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+✨ Features
+✅ Search Any GitHub Organization
 
-## React Compiler
+Enter an org name and fetch full metadata using:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+https://api.github.com/orgs/{org}
 
-## Expanding the ESLint configuration
+https://api.github.com/orgs/{org}/members
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Paginated repo fetch:
+https://api.github.com/orgs/{org}/repos?per_page=100&page=1..N
+
+✅ Repository Analytics
+
+Total repos
+
+Active vs Archived
+
+Open issues stats
+
+Stars & forks
+
+Last push timelines
+
+Language usage statistics
+
+✅ Interactive Charts (React Highcharts)
+
+Donut Pie Chart → Language Distribution
+
+Column Chart → Repo Activity Timeline
+
+Bar Chart → Top Repos (Stars vs Forks)
+
+✅ Full Repo Table With Filters
+
+Name, language, stars, forks, open issues, last push, status
+
+Includes scrollable table, sorting-ready structure
+
+Shows:
+
+“Showing X of Y loaded (Z total in org)”
+
+✅ UI & UX Enhancements
+
+Neon-gradient theme
+
+Smooth animations
+
+Avatar + org metadata
+
+Active filter chips
+
+Elegant loader
+
+Panel glow effects
+
+📦 Tech Stack
+Layer	Technologies
+Frontend	React, JSX, CSS, Highcharts
+API	GitHub REST API (v3)
+Build Tool	Vite / CRA
+Visualization	Highcharts + React wrapper
+📁 Project Structure
+src/
+ ├── components/
+ │    ├── LanguageChart.jsx
+ │    ├── ActivityChart.jsx
+ │    ├── StarsForksChart.jsx
+ │    ├── RepoTable.jsx
+ │    ├── Loader.jsx
+ ├── utils/
+ │    └── fetchReposPaginated.js
+ ├── App.jsx
+ ├── App.css
+ └── index.jsx
+
+🚀 Installation & Setup
+1. Clone the Repository
+git clone https://github.com/<your-username>/<repo-name>.git
+cd <repo-name>
+
+2. Install Dependencies
+npm install
+
+3. Start Development Server
+npm run dev
+
+🔑 How Pagination Is Handled
+
+GitHub returns max 100 repos per page.
+
+This dashboard fetches all of them:
+
+async function fetchAllRepos(org) {
+  let page = 1;
+  let all = [];
+  while (true) {
+    const res = await fetch(
+      `https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`
+    );
+    const data = await res.json();
+    if (data.length === 0) break;
+    all = [...all, ...data];
+    page++;
+  }
+  return all;
+}
+
+
+This ensures:
+✔ Accurate repo count
+✔ Accurate charts
+✔ No missing data
+
+📊 API Rate Limits
+
+Unauthenticated GitHub calls = 60 requests / hour (shown in UI).
+Dashboard caches results during session to reduce calls.
+
+You can add a GitHub token (optional):
+
+Authorization: Bearer <token>
+
+🖼 Screenshots
+🔍 Dashboard Overview
+
+
+
+🙌 Credits
+
+Built by Rakesh G
+Designed & optimized using React + Highcharts + GitHub API
