@@ -137,24 +137,9 @@ Authorization: Bearer <token>
 🖼 Screenshots
 🔍 Dashboard Overview
 
-(Paste your screenshot here)
-Example placeholder:
 
-![Dashboard Screenshot](./screenshot.png)
-
-📝 Future Improvements
-
-Add dark/light toggle
-
-Repo sorting + pagination
-
-Member analytics
-
-Deploy to Vercel / Netlify
-
-Authenticated API mode (higher rate limits)
 
 🙌 Credits
 
-Built by Rakesh G with ❤️
+Built by Rakesh G
 Designed & optimized using React + Highcharts + GitHub API
